@@ -2,17 +2,33 @@ Option Explicit
 
 Sub GetDataByPayorByProvider()
 
-'tentative v1.0
 'Each practice needs to adjust:
 '-----> Commercial adjustments <-----
 '-----> Number of extra payors <-----
 
+Dim reportPayors() As Variant
+reportPayors = Array( _
+    "SELFPAY", _
+    "AETNA", _
+    "BCBS", _
+    "CIGNA", _
+    "COMMERCIAL", _
+    "HUMANA", _
+    "TRICARE", _
+    "UNITED HEATH CARE" _
+)
+
+
+'****Global declarations that I'll refactor later
+'when I figure out how to split up functions and modules in VBA****'
 
 '****Global declarations for index/loop variables****'
 Dim cell As Range
 Dim i As Integer
 Dim docIndex As Integer
+Dim payorIndex As Integer
 Dim name As Variant
+
 
 'Column declarations
 'Todo: Refactor hardcoded names using find function on column title
@@ -33,6 +49,8 @@ pmtColumn = "Q"
 
 
 'Other global practice-based constants
+Dim reportPayorCount As Integer
+reportPayorCount = UBound(reportPayors) + 1
 Dim payorCount As Integer 'Number of payors
 Dim doctorCount As Integer 'Number of doctors
 Dim outputCell As Range 'Cell to output data
@@ -88,7 +106,6 @@ ReDim Preserve payorRows(payorCount + 1)
 payorRows(payorCount) = dataEndRow
 
 'Get payor names
-'Refactor (A) point 2
 Dim payorNamesRange As Range
 Set payorNamesRange = Range(Cells(dataStartRow, payorColumn), Cells(dataEndRow, payorColumn))
 Dim payorNames() As String
@@ -173,8 +190,8 @@ Next
 
 'For each range, check if doctor name matches and then output values
 Set outputCell = root.Offset(0, 1)
-Dim payorIndex As Integer
-'Dim docIndex As Integer (already dimmed up there)
+'Dim docIndex As Integer (moved to top)
+'Dim payorRindex As Integer (moved to top)
 Dim thisDoctor As String
 Dim missingDocCheck As Boolean
 
