@@ -2,9 +2,7 @@ Option Explicit
 
 Sub GetDataByPayorByProvider()
 
-'Each practice needs to adjust:
-'-----> Commercial adjustments <-----
-'-----> Number of extra payors <-----
+'Each practice needs to adjust this array:
 
 Dim reportPayors() As Variant
 reportPayors = Array( _
@@ -262,11 +260,15 @@ Set payorRange = Range(root, root.Offset(payorCount - 1, 0))
 Dim inputCell As Range
 Dim payorFound As Boolean
 Dim commercialRoot As Range
+Dim selfPayRoot As Range
 
 For i = 0 To reportPayorCount - 1
     Set outputCell = root.Offset(payorCount + 1 + i, 0)
     If CStr(reportPayors(i)) = "COMMERCIAL" Then
         Set commercialRoot = outputCell
+    End If
+    If CStr(reportPayors(i)) = "SELFPAY" Then
+        Set selfPayRoot = outputCell
     End If
     outputCell.Value = CStr(reportPayors(i))
     For Each cell In payorRange
@@ -328,7 +330,36 @@ Next cell
 
 
 'Self pay values adjustment
-'Todo
+
+'Charges are fine
+'Payments need to be added to commercial and then adjusted
+
+'Enter selfpay column
+
+'Set up array of output cells, one per doctor, initialize at 0
+Dim selfPayPmts() As Range
+ReDim selfPayPmts(doctorCount)
+
+'Collect selfpay payments using selfpay column and thisDoctor check
+Dim selfPayRange As Range
+Set selfPayRange = Range(Cells(dataStartRow, selfPayColumn), Cells(dataEndRow, selfPayColumn))
+Dim columnOffset As Integer
+Set outputCell = selfPayRoot
+For docIndex = 0 To doctorCount - 1
+    Set outputCell = outputCell.Offset(0, 2)
+    outputCell.Value = 0
+    For Each cell In selfPayRange
+        thisDoctor = CStr(Cells(cell.Row, docColumn).Value)
+        If thisDoctor = docNames(docIndex) Then
+            outputCell.Value = outputCell.Value + cell.Value
+        End If
+            'Unit Test
+            'MsgBox (cell.Address)
+    Next
+Next
+
+
+
 
 
 
@@ -339,12 +370,24 @@ For Each cell In cleanupRange
     If cell.Value = "" Then
         cell.Value = 0
     End If
-Next
+Next cell
 
 'Autofit columns
 cleanupRange.Columns.AutoFit
 
+'Clean original values for clarity
+Set cleanupRange = Range(root, Cells(root.Row + payorCount, root.Column + doctorCount * 2))
+For Each cell In cleanupRange
+    cell.Value = ""
+Next cell
+
+
+
 '***End point of getting data values***
+
+
+
+
 
 
 '***Start point of printing values to report sheet***
