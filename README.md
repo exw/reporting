@@ -1,2 +1,4 @@
 # reporting
-VBA Macros for assistance with generating client reports in Excel
+VBA Macros for assistance with generating client reports in Excel.
+
+(Sacrificed maintainability for ease of use...)
