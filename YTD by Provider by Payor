@@ -15,7 +15,7 @@ reportPayors = Array( _
     "COMMERCIAL", _
     "HUMANA", _
     "TRICARE", _
-    "UNITED HEATH CARE" _
+    "UNITED HEALTH CARE" _
 )
 
 
@@ -24,7 +24,7 @@ reportPayors = Array( _
 
 '****Global declarations for index/loop variables****'
 Dim cell As Range
-Dim i As Integer
+Dim i, j As Integer
 Dim docIndex As Integer
 Dim payorIndex As Integer
 Dim name As Variant
@@ -250,76 +250,91 @@ For payorIndex = 0 To payorCount - 1
 Next
 
 'Commercial values adjustment
-'-----> Set Commercial output range <-----
-Dim commRow As Integer
-Dim selfPayRow As Integer
-commRow = 61
-selfPayRow = 57
-'Todo: autofind this range via offset by finding rows for "COMMERCIAL" and "SELFPAY"
-Dim commSelfPayOffset As Integer
-commSelfPayOffset = commRow - selfPayRow
 
-Dim commRange As Range
-Set commRange = Range(root.Offset(commSelfPayOffset, 1), root.Offset(commSelfPayOffset, (doctorCount * 2)))
-'Unit Test for commRange
-'MsgBox (commRange.Address)
-Dim numOfExtra As Integer
-'-----> Number of Extra Payors <-----
-numOfExtra = 1
-Dim commPayorRows() As Integer
-ReDim commPayorRows(numOfExtra)
-'-----> Payor Rows <-----
-commPayorRows(0) = 62
-For i = 0 To numOfExtra - 1
-    For Each cell In commRange
-        cell.Value = cell.Value + Cells(commPayorRows(i), cell.Column).Value
-    Next
-    Rows(commPayorRows(i)).EntireRow.Delete
-Next
+'Add selfpay insurance pmts to commercial
 
+'Commercial values adjustment
+
+'Rearrange payor order, copying values
+'Todo: Make this better than O(n^3)
+Dim payorRange As Range
+Set payorRange = Range(root, root.Offset(payorCount - 1, 0))
+Dim inputCell As Range
+Dim payorFound As Boolean
+Dim commercialRoot As Range
+
+For i = 0 To reportPayorCount - 1
+    Set outputCell = root.Offset(payorCount + 1 + i, 0)
+    If CStr(reportPayors(i)) = "COMMERCIAL" Then
+        Set commercialRoot = outputCell
+    End If
+    outputCell.Value = CStr(reportPayors(i))
+    For Each cell In payorRange
+        If InStr(1, cell.Value, CStr(reportPayors(i)), 1) Then
+            Set inputCell = cell
+            For j = 0 To doctorCount * 2 - 1
+                Set inputCell = inputCell.Offset(0, 1)
+                Set outputCell = outputCell.Offset(0, 1)
+                outputCell.Value = inputCell.Value
+            Next j
+            payorFound = True
+        End If
+        
+    Next cell
+Next i
+'Handle Extra Payors:
+'Find locations of data for extra payors for potential later deletion
+'Add extra payors values to commercial values
+
+Dim extraPayorCount As Integer
+extraPayorCount = payorCount - reportPayorCount
+Dim extraPayors() As Range
+ReDim extraPayors(extraPayorCount)
+
+Dim extraPayorIndex As Integer
+extraPayorIndex = 0
+
+For Each cell In payorRange
+    payorFound = False
+    If InStr(1, cell.Value, "SELFPAY", 1) Then
+        Set inputCell = cell
+        Set outputCell = commercialRoot
+        For i = 0 To doctorCount - 1
+            Set inputCell = inputCell.Offset(0, 2)
+            Set outputCell = outputCell.Offset(0, 2)
+            outputCell.Value = outputCell.Value + inputCell.Value
+        Next i
+        payorFound = True
+    Else
+        For i = 0 To reportPayorCount - 1
+            If InStr(1, cell.Value, CStr(reportPayors(i)), 1) Then
+                payorFound = True
+            End If
+        Next i
+    End If
+    If Not payorFound Then
+        Set extraPayors(extraPayorIndex) = cell
+        extraPayorIndex = extraPayorIndex + 1
+        Set inputCell = cell
+        Set outputCell = commercialRoot
+        For j = 0 To doctorCount * 2 - 1
+            Set inputCell = inputCell.Offset(0, 1)
+            Set outputCell = outputCell.Offset(0, 1)
+            outputCell.Value = outputCell.Value + inputCell.Value
+        Next j
+    End If
+Next cell
 
 
 
 'Self pay values adjustment
-'Charges are fine
-'Payments need to be added to commercial and then adjusted
+'Todo
 
-'Enter selfpay column
-
-'Set up array of output cells, one per doctor, initialize at 0
-Dim selfPayPmts() As Range
-ReDim selfPayPmts(doctorCount)
-Dim commPmt As Range
-
-Set outputCell = root.Offset(0, 2)
-For docIndex = 0 To doctorCount - 1
-    Set selfPayPmts(docIndex) = outputCell
-    'Add payment to commercial
-    Set commPmt = outputCell.Offset(commSelfPayOffset, 0)
-    commPmt.Value = commPmt.Value + outputCell.Value
-    outputCell.Value = 0
-    Set outputCell = outputCell.Offset(0, 2)
-Next
-
-'Collect selfpay payments using selfpay column and thisDoctor check
-Dim selfPayRange As Range
-Set selfPayRange = Range(Cells(dataStartRow, selfPayColumn), Cells(dataEndRow, selfPayColumn))
-Dim columnOffset As Integer
-For docIndex = 0 To doctorCount - 1
-    For Each cell In selfPayRange
-        thisDoctor = CStr(Cells(cell.Row, docColumn).Value)
-        If thisDoctor = docNames(docIndex) Then
-            selfPayPmts(docIndex).Value = selfPayPmts(docIndex).Value + cell.Value
-            'Unit Test
-            'MsgBox (cell.Address)
-        End If
-    Next
-Next
 
 
 'Final cleanup: Turn blanks into 0s
 Dim cleanupRange As Range
-Set cleanupRange = Range(root, Cells(root.Row + payorCount - numOfExtra - 1, root.Column + doctorCount * 2))
+Set cleanupRange = Range(root, Cells(root.Row + 2 * payorCount - extraPayorCount - 1, root.Column + doctorCount * 2))
 For Each cell In cleanupRange
     If cell.Value = "" Then
         cell.Value = 0
@@ -332,16 +347,9 @@ cleanupRange.Columns.AutoFit
 '***End point of getting data values***
 
 
-
-
-
-
 '***Start point of printing values to report sheet***
 'Todo: print values to report spreadsheet
 '***End point of printing values***
 
 End Sub
-
-
-
 
