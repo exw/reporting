@@ -1,0 +1,434 @@
+Option Explicit
+
+Sub GetDataByPayorByProvider()
+
+'Each practice needs to adjust this array:
+
+Dim reportPayors() As Variant
+reportPayors = Array( _
+    "SELFPAY", _
+    "AETNA", _
+    "BCBS", _
+    "CIGNA", _
+    "COMMERCIAL", _
+    "HUMANA", _
+    "TRICARE", _
+    "UNITED HEALTH CARE" _
+)
+
+
+'****Global declarations that I'll refactor later
+'when I figure out how to split up functions and modules in VBA****'
+
+'****Global declarations for index/loop variables****'
+Dim cell As Range
+Dim i, j As Integer
+Dim docIndex As Integer
+Dim payorIndex As Integer
+Dim name As Variant
+
+
+'Column declarations
+'Todo: Refactor hardcoded names using find function on column title
+Dim practiceColumn As String 'Column with Practice name
+practiceColumn = "A"
+Dim payorColumn As String 'Column with Payor Names
+payorColumn = "B"
+Dim docColumn As String 'Column with Doctor names
+docColumn = "C"
+Dim findColumn As String 'Column with TOTAL, used to find start/stop of sections
+findColumn = "L"
+Dim chgColumn As String 'Column with charges
+chgColumn = "O"
+Dim selfPayColumn As String 'Column with selfpay payments
+selfPayColumn = "P"
+Dim pmtColumn As String 'Column with insurance payments
+pmtColumn = "Q"
+
+
+'Other global practice-based constants
+Dim reportPayorCount As Integer
+reportPayorCount = UBound(reportPayors) + 1
+Dim payorCount As Integer 'Number of payors
+Dim doctorCount As Integer 'Number of doctors
+Dim outputCell As Range 'Cell to output data
+
+
+
+'****'
+
+
+'***Start point of getting data ranges function***
+
+'Data range rows:
+'Todo: can autofind data range via blue background of start and end rows
+Dim dataStartRow As Integer
+Dim dataEndRow As Integer
+dataStartRow = 8
+'Todo: Fix this lame finder function to get last row
+Set cell = Cells(dataStartRow + 1, practiceColumn)
+Do While IsEmpty(cell)
+    Set cell = cell.Offset(1, 0)
+Loop
+
+dataEndRow = cell.Row
+
+
+'Set data range identifier column range (TOTAL string in this case) and get number of payors
+'*Todo maybe: autofind Total column
+'*Todo maybe: Refactor (A) point 1:
+'a function (String -> Range) that takes a column letter and returns the data range
+
+Dim dataFindingRange As Range
+Set dataFindingRange = Range(Cells(dataStartRow, findColumn), Cells(dataEndRow, findColumn))
+
+
+payorCount = Application.WorksheetFunction.CountA(dataFindingRange)
+'Unit Test, should equal the number of rows that say TOTAL
+'MsgBox (arrayCount)
+
+'Initialize array with start rows and find start rows
+Dim payorRows() As Integer
+payorCount = 0
+'*Todo: replace condition with checking if not blank
+For Each cell In dataFindingRange
+    If InStr(1, cell, "T", 1) Then
+        payorCount = payorCount + 1
+        ReDim Preserve payorRows(payorCount)
+        payorRows(payorCount - 1) = cell.Row
+    End If
+Next
+
+'Add dataEndRow as final entry
+ReDim Preserve payorRows(payorCount + 1)
+payorRows(payorCount) = dataEndRow
+
+'Get payor names
+Dim payorNamesRange As Range
+Set payorNamesRange = Range(Cells(dataStartRow, payorColumn), Cells(dataEndRow, payorColumn))
+Dim payorNames() As String
+ReDim payorNames(payorCount)
+Dim payorNamesIndex As Integer
+payorNamesIndex = 0
+'Reusing cell range declared in previous loop
+For Each cell In payorNamesRange
+    If Not IsEmpty(cell.Value) Then
+        payorNames(payorNamesIndex) = cell.Value
+        payorNamesIndex = payorNamesIndex + 1
+    End If
+Next
+
+'Create charge and payment ranges for each payor
+
+Dim docRanges() As Range
+ReDim docRanges(payorCount)
+Dim chgRanges() As Range
+ReDim chgRanges(payorCount)
+Dim pmtRanges() As Range
+ReDim pmtRanges(payorCount)
+i = 0
+For i = 0 To payorCount - 1
+    Set docRanges(i) = Range(Cells(payorRows(i), docColumn), Cells(payorRows(i + 1), docColumn))
+    Set chgRanges(i) = Range(Cells(payorRows(i), chgColumn), Cells(payorRows(i + 1), chgColumn))
+    Set pmtRanges(i) = Range(Cells(payorRows(i), pmtColumn), Cells(payorRows(i + 1), pmtColumn))
+    'Unit Testing: Should go from 0 to arrayCount-1
+    'MsgBox "Set ranges for index: " & i
+Next
+
+'***End point of getting data ranges***
+'API vars: arrayCount, dataStartRows, nameColumn, dataNames, docRanges, chgRanges, pmtRanges
+
+
+
+'***Start point of getting values***
+
+'Set array with doctor names using BCBS
+Dim docNames() As String
+Dim foundMatch As Boolean
+Dim docNameRange As Range
+Set docNameRange = Range(Cells(dataStartRow, docColumn), Cells(dataEndRow, docColumn))
+doctorCount = 0
+For Each cell In docNameRange
+    foundMatch = False
+    'Check if doctor already found
+    If InStr(1, cell.Value, "[", 1) Then
+        'If array has at least 1 element, check if doctor already found
+        If doctorCount > 0 Then
+            For i = 0 To doctorCount
+                If cell.Value = docNames(i) Then
+                     foundMatch = True
+                End If
+            Next
+        End If
+        'If not found, add one space with doctor name
+        If Not foundMatch Then
+            doctorCount = doctorCount + 1
+            ReDim Preserve docNames(doctorCount)
+            docNames(doctorCount - 1) = CStr(cell.Value)
+        End If
+    End If
+    'Unit testing: doctor names
+Next
+
+'Declare top left corner of output range
+'Todo... access report spreadsheet and find ranges to output to
+Dim root As Range
+Set root = Range(Cells(dataEndRow + 3, practiceColumn), Cells(dataEndRow + 3, practiceColumn))
+
+'Prep to output values: Print payor names
+
+Set outputCell = root
+outputCell.Value = "SELFPAY"
+Set outputCell = outputCell.Offset(1, 0)
+For Each name In payorNames
+    outputCell.Value = CStr(name)
+    Set outputCell = outputCell.Offset(1, 0)
+Next
+
+
+'For each range, check if doctor name matches and then output values
+Set outputCell = root.Offset(0, 1)
+'Dim docIndex As Integer (moved to top)
+'Dim payorRindex As Integer (moved to top)
+Dim thisDoctor As String
+Dim missingDocCheck As Boolean
+
+'Charges first
+For payorIndex = 0 To payorCount - 1
+    Set outputCell = root.Offset(payorIndex, 1)
+    docIndex = 0
+    For Each cell In chgRanges(payorIndex)
+        thisDoctor = CStr(Cells(cell.Row, docColumn).Value)
+        If InStr(1, thisDoctor, "[", 1) Then
+            If thisDoctor = docNames(docIndex) Then
+                outputCell.Value = cell.Value
+                Set outputCell = outputCell.Offset(0, 2)
+                docIndex = docIndex + 1
+            Else
+                missingDocCheck = True
+                Do While missingDocCheck
+                    outputCell.Value = 0
+                    Set outputCell = outputCell.Offset(0, 2)
+                    docIndex = docIndex + 1
+                    If docIndex > doctorCount - 1 Or docNames(docIndex) = thisDoctor Then
+                        outputCell.Value = cell.Value
+                        missingDocCheck = False
+                    End If
+                Loop
+            End If
+        End If
+    Next
+Next
+
+'Payments second
+For payorIndex = 0 To payorCount - 1
+    Set outputCell = root.Offset(payorIndex, 2)
+    docIndex = 0
+    For Each cell In pmtRanges(payorIndex)
+        thisDoctor = CStr(Cells(cell.Row, docColumn).Value)
+        If InStr(1, thisDoctor, "[", 1) Then
+            If thisDoctor = docNames(docIndex) Then
+                outputCell.Value = cell.Value
+                Set outputCell = outputCell.Offset(0, 2)
+                docIndex = docIndex + 1
+            Else
+                missingDocCheck = True
+                Do While missingDocCheck
+                    outputCell.Value = 0
+                    Set outputCell = outputCell.Offset(0, 2)
+                    docIndex = docIndex + 1
+                    If docIndex > doctorCount - 1 Or docNames(docIndex) = thisDoctor Then
+                        outputCell.Value = cell.Value
+                        missingDocCheck = False
+                    End If
+                Loop
+            End If
+        End If
+    Next
+Next
+
+'Commercial values adjustment
+
+'Add selfpay insurance pmts to commercial
+
+'Commercial values adjustment
+
+'Rearrange payor order, copying values
+'Todo: Make this better than O(n^3)
+Dim payorRange As Range
+Set payorRange = Range(root, root.Offset(payorCount - 1, 0))
+Dim inputCell As Range
+Dim payorFound As Boolean
+
+'Find output locations for special cases
+Dim commercialRoot As Range
+Dim selfPayRoot As Range
+Dim medicaidRoot As Range
+Dim medicaidReport As Boolean
+medicaidReport = False
+
+For i = 0 To reportPayorCount - 1
+    Set outputCell = root.Offset(payorCount + 1 + i, 0)
+    If CStr(reportPayors(i)) = "COMMERCIAL" Then
+        Set commercialRoot = outputCell
+    ElseIf CStr(reportPayors(i)) = "SELFPAY" Then
+        Set selfPayRoot = outputCell
+    ElseIf InStr(1, CStr(reportPayors(i)), "AID", 1) Then
+        Set medicaidRoot = outputCell
+        medicaidReport = True
+        'Unit Test:
+        'MsgBox (medicaidRoot.Address)
+    End If
+    outputCell.Value = CStr(reportPayors(i))
+    For Each cell In payorRange
+        If InStr(1, cell.Value, CStr(reportPayors(i)), 1) Then
+            Set inputCell = cell
+            For j = 0 To doctorCount * 2 - 1
+                Set inputCell = inputCell.Offset(0, 1)
+                Set outputCell = outputCell.Offset(0, 1)
+                outputCell.Value = inputCell.Value
+            Next j
+            payorFound = True
+        End If
+        
+    Next cell
+Next i
+'Handle Extra Payors:
+'Find locations of data for extra payors for potential later deletion
+'Add extra payors values to commercial values
+
+Dim extraPayorCount As Integer
+extraPayorCount = payorCount - reportPayorCount
+Dim extraPayors() As Range
+ReDim extraPayors(extraPayorCount)
+
+Dim extraPayorIndex As Integer
+extraPayorIndex = 0
+
+If medicaidReport Then
+    Set outputCell = medicaidRoot
+    For i = 0 To doctorCount * 2 - 1
+        Set outputCell = outputCell.Offset(0, 1)
+        outputCell.Value = 0
+    Next i
+End If
+
+For Each cell In payorRange
+    payorFound = False
+    If InStr(1, cell.Value, "SELFPAY", 1) Then
+        Set inputCell = cell
+        Set outputCell = commercialRoot
+        For i = 0 To doctorCount - 1
+            Set inputCell = inputCell.Offset(0, 2)
+            Set outputCell = outputCell.Offset(0, 2)
+            outputCell.Value = outputCell.Value + inputCell.Value
+        Next i
+        payorFound = True
+    ElseIf InStr(1, cell.Value, "MEDICAID", 1) Then
+        Set inputCell = cell
+        Set outputCell = medicaidRoot
+        For i = 0 To doctorCount * 2 - 1
+            Set inputCell = inputCell.Offset(0, 1)
+            Set outputCell = outputCell.Offset(0, 1)
+            outputCell.Value = outputCell.Value + inputCell.Value
+        Next i
+        payorFound = True
+    ElseIf InStr(1, cell.Value, "MERIDIAN", 1) Then
+        Set inputCell = cell
+        Set outputCell = medicaidRoot
+        For i = 0 To doctorCount * 2 - 1
+            Set inputCell = inputCell.Offset(0, 1)
+            Set outputCell = outputCell.Offset(0, 1)
+            outputCell.Value = outputCell.Value + inputCell.Value
+        Next i
+        payorFound = True
+    Else
+        For i = 0 To reportPayorCount - 1
+            If InStr(1, cell.Value, CStr(reportPayors(i)), 1) Then
+                payorFound = True
+            End If
+        Next i
+    End If
+    If Not payorFound Then
+        Set extraPayors(extraPayorIndex) = cell
+        extraPayorIndex = extraPayorIndex + 1
+        Set inputCell = cell
+        Set outputCell = commercialRoot
+        For j = 0 To doctorCount * 2 - 1
+            Set inputCell = inputCell.Offset(0, 1)
+            Set outputCell = outputCell.Offset(0, 1)
+            outputCell.Value = outputCell.Value + inputCell.Value
+        Next j
+    End If
+Next cell
+
+
+
+'Self pay values adjustment
+
+'Charges are fine
+'Payments need to be added to commercial and then adjusted
+
+Dim selfPayPmts() As Range
+ReDim selfPayPmts(doctorCount)
+
+'Collect selfpay payments using selfpay column and thisDoctor check
+Dim selfPayRange As Range
+Set selfPayRange = Range(Cells(dataStartRow, selfPayColumn), Cells(dataEndRow, selfPayColumn))
+Dim columnOffset As Integer
+Set outputCell = selfPayRoot
+For docIndex = 0 To doctorCount - 1
+    Set outputCell = outputCell.Offset(0, 2)
+    outputCell.Value = 0
+    For Each cell In selfPayRange
+        thisDoctor = CStr(Cells(cell.Row, docColumn).Value)
+        If thisDoctor = docNames(docIndex) Then
+            outputCell.Value = outputCell.Value + cell.Value
+        End If
+            'Unit Test
+            'MsgBox (cell.Address)
+    Next
+Next
+
+
+
+
+
+
+'Final cleanup: Turn blanks into 0s
+Dim cleanupRange As Range
+Set cleanupRange = Range(root, Cells(root.Row + 2 * payorCount - extraPayorCount - 1, root.Column + doctorCount * 2))
+For Each cell In cleanupRange
+    If cell.Value = "" Then
+        cell.Value = 0
+    End If
+Next cell
+
+'Autofit columns
+cleanupRange.Columns.AutoFit
+
+'Clean original values for clarity
+Set cleanupRange = Range(root, Cells(root.Row + payorCount, root.Column + doctorCount * 2))
+For Each cell In cleanupRange
+    cell.Value = ""
+Next cell
+
+
+
+'***End point of getting data values***
+
+
+
+
+
+
+'***Start point of printing values to report sheet***
+'Todo: print values to report spreadsheet
+'***End point of printing values***
+
+End Sub
+
+
+
+
+
