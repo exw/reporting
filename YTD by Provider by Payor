@@ -6,17 +6,19 @@ Sub GetDataByPayorByProvider()
 
 Dim reportPayors() As Variant
 reportPayors = Array( _
-    "SELFPAY", _
     "AETNA", _
     "BCBS", _
     "CIGNA", _
     "COMMERCIAL", _
+    "GREAT WEST", _
     "HUMANA", _
-    "TRICARE", _
-    "UNITED HEALTH CARE" _
+    "MEDICAID/MERIDIAN", _
+    "UNITED HEALTH CARE", _
+    "SELFPAY" _
 )
 
 
+'Begin VBA spaghetti'
 '****Global declarations that I'll refactor later
 'when I figure out how to split up functions and modules in VBA****'
 
@@ -259,16 +261,25 @@ Dim payorRange As Range
 Set payorRange = Range(root, root.Offset(payorCount - 1, 0))
 Dim inputCell As Range
 Dim payorFound As Boolean
+
+'Find output locations for special cases
 Dim commercialRoot As Range
 Dim selfPayRoot As Range
+Dim medicaidRoot As Range
+Dim medicaidReport As Boolean
+medicaidReport = False
 
 For i = 0 To reportPayorCount - 1
     Set outputCell = root.Offset(payorCount + 1 + i, 0)
     If CStr(reportPayors(i)) = "COMMERCIAL" Then
         Set commercialRoot = outputCell
-    End If
-    If CStr(reportPayors(i)) = "SELFPAY" Then
+    ElseIf CStr(reportPayors(i)) = "SELFPAY" Then
         Set selfPayRoot = outputCell
+    ElseIf InStr(1, CStr(reportPayors(i)), "AID", 1) Then
+        Set medicaidRoot = outputCell
+        medicaidReport = True
+        'Unit Test:
+        'MsgBox (medicaidRoot.Address)
     End If
     outputCell.Value = CStr(reportPayors(i))
     For Each cell In payorRange
@@ -296,6 +307,14 @@ ReDim extraPayors(extraPayorCount)
 Dim extraPayorIndex As Integer
 extraPayorIndex = 0
 
+If medicaidReport Then
+    Set outputCell = medicaidRoot
+    For i = 0 To doctorCount * 2 - 1
+        Set outputCell = outputCell.Offset(0, 1)
+        outputCell.Value = 0
+    Next i
+End If
+
 For Each cell In payorRange
     payorFound = False
     If InStr(1, cell.Value, "SELFPAY", 1) Then
@@ -304,6 +323,24 @@ For Each cell In payorRange
         For i = 0 To doctorCount - 1
             Set inputCell = inputCell.Offset(0, 2)
             Set outputCell = outputCell.Offset(0, 2)
+            outputCell.Value = outputCell.Value + inputCell.Value
+        Next i
+        payorFound = True
+    ElseIf InStr(1, cell.Value, "MEDICAID", 1) Then
+        Set inputCell = cell
+        Set outputCell = medicaidRoot
+        For i = 0 To doctorCount * 2 - 1
+            Set inputCell = inputCell.Offset(0, 1)
+            Set outputCell = outputCell.Offset(0, 1)
+            outputCell.Value = outputCell.Value + inputCell.Value
+        Next i
+        payorFound = True
+    ElseIf InStr(1, cell.Value, "MERIDIAN", 1) Then
+        Set inputCell = cell
+        Set outputCell = medicaidRoot
+        For i = 0 To doctorCount * 2 - 1
+            Set inputCell = inputCell.Offset(0, 1)
+            Set outputCell = outputCell.Offset(0, 1)
             outputCell.Value = outputCell.Value + inputCell.Value
         Next i
         payorFound = True
@@ -334,9 +371,6 @@ Next cell
 'Charges are fine
 'Payments need to be added to commercial and then adjusted
 
-'Enter selfpay column
-
-'Set up array of output cells, one per doctor, initialize at 0
 Dim selfPayPmts() As Range
 ReDim selfPayPmts(doctorCount)
 
@@ -395,4 +429,6 @@ Next cell
 '***End point of printing values***
 
 End Sub
+
+
 
