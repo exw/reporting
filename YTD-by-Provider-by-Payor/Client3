@@ -18,9 +18,6 @@ reportPayors = Array( _
 )
 
 
-'Begin VBA spaghetti'
-'****Global declarations that I'll refactor later
-'when I figure out how to split up functions and modules in VBA****'
 
 '****Global declarations for index/loop variables****'
 Dim cell As Range
@@ -214,6 +211,8 @@ For payorIndex = 0 To payorCount - 1
                     docIndex = docIndex + 1
                     If docIndex > doctorCount - 1 Or docNames(docIndex) = thisDoctor Then
                         outputCell.Value = cell.Value
+                        Set outputCell = outputCell.Offset(0, 2)
+                        docIndex = docIndex + 1
                         missingDocCheck = False
                     End If
                 Loop
@@ -241,6 +240,8 @@ For payorIndex = 0 To payorCount - 1
                     docIndex = docIndex + 1
                     If docIndex > doctorCount - 1 Or docNames(docIndex) = thisDoctor Then
                         outputCell.Value = cell.Value
+                        Set outputCell = outputCell.Offset(0, 2)
+                        docIndex = docIndex + 1
                         missingDocCheck = False
                     End If
                 Loop
@@ -277,6 +278,7 @@ For i = 0 To reportPayorCount - 1
         Set selfPayRoot = outputCell
     ElseIf InStr(1, CStr(reportPayors(i)), "AID", 1) Then
         Set medicaidRoot = outputCell
+        'MsgBox (medicaidRoot.Address)
         medicaidReport = True
         'Unit Test:
         'MsgBox (medicaidRoot.Address)
@@ -392,11 +394,6 @@ For docIndex = 0 To doctorCount - 1
     Next
 Next
 
-
-
-
-
-
 'Final cleanup: Turn blanks into 0s
 Dim cleanupRange As Range
 Set cleanupRange = Range(root, Cells(root.Row + 2 * payorCount - extraPayorCount - 1, root.Column + doctorCount * 2))
@@ -415,8 +412,6 @@ For Each cell In cleanupRange
     cell.Value = ""
 Next cell
 
-
-
 '***End point of getting data values***
 
 
@@ -429,6 +424,10 @@ Next cell
 '***End point of printing values***
 
 End Sub
+
+
+
+
 
 
 
